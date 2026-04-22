@@ -54,7 +54,7 @@ export default async function CompetitionDetailPage({ params }: { params: { id: 
 
   const [{ data: users }, { data: teams }, { data: memberships }] = await Promise.all([
     supabase.from('users').select('id, name'),
-    supabase.from('teams').select('id, name, colour'),
+    supabase.from('teams').select('id, name, colour, created_at'),
     supabase.from('team_memberships').select('user_id, team_id'),
   ])
 
