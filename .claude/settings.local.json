@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(ping -n 6 localhost)",
+      "Bash(del \"C:\\\\Users\\\\thiba\\\\Documents\\\\13 - Coding projects\\\\PacePact\\\\next.config.ts\")",
+      "Bash(curl -s -c - -X POST http://localhost:3000/api/auth/callback/credentials)",
+      "Bash(curl -s -X POST http://localhost:3000/api/strava/sync -H \"Cookie: $\\(curl -s -c - -X POST http://localhost:3000/api/auth/callback/credentials 2>/dev/null\\)\")",
+      "Bash(curl -s http://localhost:3000/api/auth/session)"
+    ]
+  }
+}
