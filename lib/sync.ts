@@ -26,7 +26,10 @@ async function getMultipliers(): Promise<Record<string, number>> {
   return map
 }
 
-export async function syncUser(userId: string): Promise<number> {
+export async function syncUser(
+  userId: string,
+  options: { skipJointDetection?: boolean } = {}
+): Promise<number> {
   const { data: tokenRow } = await supabase
     .from('strava_tokens')
     .select('*')
@@ -113,7 +116,8 @@ export async function syncUser(userId: string): Promise<number> {
       { onConflict: 'strava_id' }
     )
 
-    // Detect joint activities via Strava's related endpoint
+    // Detect joint activities via Strava's related endpoint (skipped on manual syncs)
+    if (options.skipJointDetection) continue
     try {
       const related = await fetchRelatedActivities(accessToken, stravaActivity.id)
       for (const rel of related) {
