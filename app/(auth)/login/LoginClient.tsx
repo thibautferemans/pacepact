@@ -2,12 +2,11 @@
 
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Logo from '@/components/Logo'
 
 export default function LoginClient() {
-  const router = useRouter()
   const params = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -29,8 +28,7 @@ export default function LoginClient() {
       setError('Invalid email or password')
       setLoading(false)
     } else {
-      router.push(params.get('callbackUrl') ?? '/')
-      router.refresh()
+      window.location.href = params.get('callbackUrl') ?? '/'
     }
   }
 
