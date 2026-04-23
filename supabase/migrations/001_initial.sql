@@ -138,7 +138,7 @@ INSERT INTO competitions (
   location_lat, location_lng, location_radius_m, location_match_logic
 ) VALUES (
   'Blaarmeersen Swims',
-  'Count your open-water swims at Blaarmeersen in Ghent. Must follow each other on Strava for joint detection.',
+  'Count your open-water swims at Blaarmeersen in Ghent.',
   'Swimming',
   'activity_count',
   'both',
