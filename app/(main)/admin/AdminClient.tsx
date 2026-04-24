@@ -418,6 +418,8 @@ function TeamsTab() {
 // ─── Users ────────────────────────────────────────────────────────────────────
 function UsersTab({ currentUserId }: { currentUserId: string }) {
   const [users, setUsers] = useState<AdminUser[]>([])
+  const [resyncing, setResyncing] = useState<string | null>(null)
+  const [resyncMsg, setResyncMsg] = useState<Record<string, string>>({})
 
   const load = useCallback(() => {
     fetch('/api/admin/users').then((r) => r.json()).then(setUsers)
@@ -431,9 +433,35 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
     load()
   }
 
+  async function forceResync(userId: string) {
+    setResyncing(userId)
+    setResyncMsg((m) => ({ ...m, [userId]: '' }))
+    try {
+      const res = await fetch('/api/admin/resync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setResyncMsg((m) => ({ ...m, [userId]: data.error ?? 'Error' }))
+      } else {
+        setResyncMsg((m) => ({ ...m, [userId]: `✓ ${data.synced} activities` }))
+        load()
+      }
+    } catch {
+      setResyncMsg((m) => ({ ...m, [userId]: 'Network error' }))
+    } finally {
+      setResyncing(null)
+    }
+  }
+
   return (
     <div>
-      <h2 className="font-semibold text-gray-800 mb-4">Users ({users.length})</h2>
+      <h2 className="font-semibold text-gray-800 mb-1">Users ({users.length})</h2>
+      <p className="text-xs text-gray-400 mb-4">
+        "Full resync" clears the sync cursor and re-fetches all Strava history — use this if active day counts look too low.
+      </p>
       <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
@@ -463,9 +491,27 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
                   {u.lastSynced ? format(new Date(u.lastSynced), 'd MMM HH:mm') : '—'}
                 </td>
                 <td className="px-4 py-3">
-                  {u.id !== currentUserId && (
-                    <button onClick={() => removeUser(u.id)} className="text-xs text-red-500 hover:underline">Remove</button>
-                  )}
+                  <div className="flex items-center gap-3">
+                    {u.stravaConnected && (
+                      <div className="flex items-center gap-1">
+                        {resyncMsg[u.id] && (
+                          <span className={`text-xs ${resyncMsg[u.id].startsWith('✓') ? 'text-green-600' : 'text-red-500'}`}>
+                            {resyncMsg[u.id]}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => forceResync(u.id)}
+                          disabled={resyncing === u.id}
+                          className="text-xs text-[#185FA5] hover:underline disabled:opacity-50"
+                        >
+                          {resyncing === u.id ? 'Syncing…' : 'Full resync'}
+                        </button>
+                      </div>
+                    )}
+                    {u.id !== currentUserId && (
+                      <button onClick={() => removeUser(u.id)} className="text-xs text-red-500 hover:underline">Remove</button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

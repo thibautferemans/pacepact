@@ -47,6 +47,7 @@ interface SocialData {
   topPartner: { name: string; count: number } | null
   topFan: { name: string; count: number } | null
   totalJointActivities: number
+  totalActivityCount: number
 }
 
 interface FunData {
@@ -334,7 +335,7 @@ export default function YearInReviewClient({
           />
 
           {/* Hero stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <StatCard
               label="Total distance"
               value={`${data.hero.totalDistanceKm.toLocaleString()} km`}
@@ -346,11 +347,6 @@ export default function YearInReviewClient({
             <StatCard
               label="Total RES"
               value={data.hero.totalRES.toLocaleString()}
-            />
-            <StatCard
-              label="Active days"
-              value={`${data.hero.totalActiveDays}`}
-              sub={`of ${data.hero.totalDaysElapsed} days`}
             />
           </div>
 
@@ -513,9 +509,13 @@ export default function YearInReviewClient({
             {openSections[4] && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
                 <BigStat
-                  label="Joint activities"
+                  label="Group activities"
                   value={String(data.social.totalJointActivities)}
-                  insight={`${data.social.totalJointActivities} of your activities were done with the group`}
+                  insight={
+                    data.social.totalActivityCount > 0
+                      ? `${data.social.totalJointActivities} of your ${data.social.totalActivityCount} activities were done with the pacepact group`
+                      : 'No activities yet'
+                  }
                 />
                 <BigStat
                   label="Top training partner"
@@ -557,9 +557,15 @@ export default function YearInReviewClient({
                 <BigStat
                   label="Blaarmeersen swims 🏊"
                   value={data.fun.blaarmeersen ? String(data.fun.blaarmeersen.count) : '0'}
-                  insight={data.fun.blaarmeersen
-                    ? `From ${data.fun.blaarmeersen.first} to ${data.fun.blaarmeersen.last}`
-                    : 'No qualifying swims yet this year'}
+                  insight={data.fun.blaarmeersen ? undefined : 'No qualifying swims yet this year'}
+                />
+                <BigStat
+                  label="First Blaarmeersen swim"
+                  value={data.fun.blaarmeersen?.first ?? '—'}
+                />
+                <BigStat
+                  label="Latest Blaarmeersen swim"
+                  value={data.fun.blaarmeersen?.last ?? '—'}
                 />
               </div>
             )}

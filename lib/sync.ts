@@ -72,7 +72,7 @@ async function syncKudos(userId: string, accessToken: string, maxActivities = 30
 
 export async function syncUser(
   userId: string,
-  options: { skipJointDetection?: boolean; syncKudos?: boolean } = {}
+  options: { skipJointDetection?: boolean; syncKudos?: boolean; forceFull?: boolean } = {}
 ): Promise<number> {
   const { data: tokenRow } = await supabase
     .from('strava_tokens')
@@ -105,8 +105,8 @@ export async function syncUser(
   const settings = await getSettings()
   const multipliers = await getMultipliers()
 
-  // Determine 'after' param from last successful sync
-  const after = tokenRow.last_synced_at
+  // Determine 'after' param from last successful sync (skip if forceFull)
+  const after = !options.forceFull && tokenRow.last_synced_at
     ? Math.floor(new Date(tokenRow.last_synced_at).getTime() / 1000)
     : undefined
 
@@ -180,30 +180,46 @@ export async function syncUser(
     if (excluded || options.skipJointDetection) continue
     try {
       const related = await fetchRelatedActivities(accessToken, stravaActivity.id)
-      for (const rel of related) {
-        const { data: relActivity } = await supabase
-          .from('activities')
-          .select('id, res_score')
-          .eq('strava_id', rel.id)
-          .maybeSingle()
+      if (related.length > 0) {
+        // Store ALL Strava partner names (not just PacePact members)
+        const partnerNames: string[] = related
+          .map((rel: any) => {
+            const fn = (rel.athlete?.firstname ?? '').trim()
+            const ln = (rel.athlete?.lastname ?? '').trim()
+            return `${fn} ${ln}`.trim()
+          })
+          .filter(Boolean)
 
-        if (relActivity) {
-          const bonus = settings.social_bonus_points
-          // Update current activity
+        if (partnerNames.length > 0) {
           await supabase.from('activities').update({
-            is_joint: true,
-            social_bonus: bonus,
-            total_score: res_score + bonus,
+            joint_partner_names: partnerNames,
           }).eq('strava_id', stravaActivity.id)
+        }
 
-          // Update related activity
-          await supabase.from('activities').update({
-            is_joint: true,
-            social_bonus: bonus,
-            total_score: parseFloat(relActivity.res_score) + bonus,
-          }).eq('id', relActivity.id)
+        // Also check if any related activity belongs to a PacePact member → award bonus
+        for (const rel of related) {
+          const { data: relActivity } = await supabase
+            .from('activities')
+            .select('id, res_score')
+            .eq('strava_id', rel.id)
+            .maybeSingle()
 
-          break
+          if (relActivity) {
+            const bonus = settings.social_bonus_points
+            await supabase.from('activities').update({
+              is_joint: true,
+              social_bonus: bonus,
+              total_score: res_score + bonus,
+            }).eq('strava_id', stravaActivity.id)
+
+            await supabase.from('activities').update({
+              is_joint: true,
+              social_bonus: bonus,
+              total_score: parseFloat(relActivity.res_score) + bonus,
+            }).eq('id', relActivity.id)
+
+            break
+          }
         }
       }
     } catch {
