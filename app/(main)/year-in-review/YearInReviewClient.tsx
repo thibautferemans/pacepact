@@ -509,7 +509,7 @@ export default function YearInReviewClient({
             {openSections[4] && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
                 <BigStat
-                  label="Group activities"
+                  label="Pacepact group activities"
                   value={String(data.social.totalJointActivities)}
                   insight={
                     data.social.totalActivityCount > 0
@@ -541,6 +541,19 @@ export default function YearInReviewClient({
             {openSections[5] && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
                 <BigStat
+                  label="Blaarmeersen swims 🏊"
+                  value={data.fun.blaarmeersen ? String(data.fun.blaarmeersen.count) : '0'}
+                  insight={data.fun.blaarmeersen ? undefined : 'No qualifying swims yet this year'}
+                />
+                <BigStat
+                  label="First Blaarmeersen swim"
+                  value={data.fun.blaarmeersen?.first ?? '—'}
+                />
+                <BigStat
+                  label="Latest Blaarmeersen swim"
+                  value={data.fun.blaarmeersen?.last ?? '—'}
+                />
+                <BigStat
                   label="Longest by distance"
                   value={data.fun.longestByDistance ? `${data.fun.longestByDistance.km} km` : '—'}
                   insight={data.fun.longestByDistance
@@ -553,19 +566,6 @@ export default function YearInReviewClient({
                   insight={data.fun.longestByDuration
                     ? `${data.fun.longestByDuration.sport} on ${format(new Date(data.fun.longestByDuration.date), 'd MMM')}`
                     : undefined}
-                />
-                <BigStat
-                  label="Blaarmeersen swims 🏊"
-                  value={data.fun.blaarmeersen ? String(data.fun.blaarmeersen.count) : '0'}
-                  insight={data.fun.blaarmeersen ? undefined : 'No qualifying swims yet this year'}
-                />
-                <BigStat
-                  label="First Blaarmeersen swim"
-                  value={data.fun.blaarmeersen?.first ?? '—'}
-                />
-                <BigStat
-                  label="Latest Blaarmeersen swim"
-                  value={data.fun.blaarmeersen?.last ?? '—'}
                 />
               </div>
             )}
