@@ -10,8 +10,6 @@ const SPORT_ICONS: Record<string, string> = {
   Running: '🏃',
   Swimming: '🏊',
   Cycling: '🚴',
-  Hiking: '🥾',
-  Strength: '🏋️',
 }
 
 export default function Navbar({ hasMainComp, showYearInReview }: { hasMainComp?: boolean; showYearInReview?: boolean }) {
@@ -22,10 +20,10 @@ export default function Navbar({ hasMainComp, showYearInReview }: { hasMainComp?
   const [syncMsg, setSyncMsg] = useState('')
 
   const navLinks = [
+    { href: '/about', label: 'How It Works' },
     { href: '/', label: 'Overview' },
     ...(hasMainComp ? [{ href: '/progress', label: 'Progress' }] : []),
     ...(showYearInReview ? [{ href: '/year-in-review', label: 'Year in Review' }] : []),
-    { href: '/about', label: 'How It Works' },
     ...(session?.user.role === 'admin' ? [{ href: '/admin', label: 'Admin' }] : []),
   ]
 

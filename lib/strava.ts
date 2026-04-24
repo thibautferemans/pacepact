@@ -9,6 +9,10 @@ export const SPORT_MAP: Record<string, string> = {
   VirtualRide: 'Cycling',
   EBikeRide: 'Cycling',
   MountainBikeRide: 'Cycling',
+}
+
+export const STRAVA_DISPLAY_MAP: Record<string, string> = {
+  ...SPORT_MAP,
   Hike: 'Hiking',
   Walk: 'Hiking',
   WeightTraining: 'Strength',
@@ -19,10 +23,6 @@ export const SPORT_MAP: Record<string, string> = {
   RockClimbing: 'Strength',
   Yoga: 'Strength',
   Pilates: 'Strength',
-}
-
-export const STRAVA_DISPLAY_MAP: Record<string, string> = {
-  ...SPORT_MAP,
   Kayaking: 'Kayaking',
   Canoeing: 'Canoeing',
   Rowing: 'Rowing',
