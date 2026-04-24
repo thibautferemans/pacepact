@@ -554,14 +554,14 @@ export default function YearInReviewClient({
                   value={data.fun.blaarmeersen?.last ?? '—'}
                 />
                 <BigStat
-                  label="Longest by distance"
+                  label="Longest activity by distance"
                   value={data.fun.longestByDistance ? `${data.fun.longestByDistance.km} km` : '—'}
                   insight={data.fun.longestByDistance
                     ? `${data.fun.longestByDistance.sport} on ${format(new Date(data.fun.longestByDistance.date), 'd MMM')}`
                     : undefined}
                 />
                 <BigStat
-                  label="Longest by duration"
+                  label="Longest activity by duration"
                   value={data.fun.longestByDuration ? `${data.fun.longestByDuration.hours} h` : '—'}
                   insight={data.fun.longestByDuration
                     ? `${data.fun.longestByDuration.sport} on ${format(new Date(data.fun.longestByDuration.date), 'd MMM')}`
