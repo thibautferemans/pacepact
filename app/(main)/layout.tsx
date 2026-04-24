@@ -15,10 +15,11 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   const isOnboarding = pathname.startsWith('/onboarding')
 
   // Check onboarding completion fresh from DB on every navigation
-  const [{ data: stravaToken }, { data: user }, { data: mainComp }] = await Promise.all([
+  const [{ data: stravaToken }, { data: user }, { data: mainComp }, { data: yirFlag }] = await Promise.all([
     supabase.from('strava_tokens').select('user_id').eq('user_id', session.user.id).maybeSingle(),
-    supabase.from('users').select('threshold_hr').eq('id', session.user.id).single(),
+    supabase.from('users').select('threshold_hr, role').eq('id', session.user.id).single(),
     supabase.from('competitions').select('id').eq('is_main', true).eq('status', 'active').maybeSingle(),
+    supabase.from('settings').select('value').eq('key', 'feature_year_in_review').maybeSingle(),
   ])
 
   const onboardingComplete = !!stravaToken && !!user?.threshold_hr
@@ -29,9 +30,13 @@ export default async function MainLayout({ children }: { children: React.ReactNo
     return <>{children}</>
   }
 
+  const isAdmin = user?.role === 'admin'
+  const yirEnabled = yirFlag?.value === 'true'
+  const showYearInReview = isAdmin || yirEnabled
+
   return (
     <div className="min-h-screen bg-page">
-      <Navbar hasMainComp={!!mainComp} />
+      <Navbar hasMainComp={!!mainComp} showYearInReview={showYearInReview} />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>

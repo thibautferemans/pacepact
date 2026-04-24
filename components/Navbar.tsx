@@ -14,7 +14,7 @@ const SPORT_ICONS: Record<string, string> = {
   Strength: '🏋️',
 }
 
-export default function Navbar({ hasMainComp }: { hasMainComp?: boolean }) {
+export default function Navbar({ hasMainComp, showYearInReview }: { hasMainComp?: boolean; showYearInReview?: boolean }) {
   const { data: session } = useSession()
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -24,6 +24,7 @@ export default function Navbar({ hasMainComp }: { hasMainComp?: boolean }) {
   const navLinks = [
     { href: '/', label: 'Overview' },
     ...(hasMainComp ? [{ href: '/progress', label: 'Progress' }] : []),
+    ...(showYearInReview ? [{ href: '/year-in-review', label: 'Year in Review' }] : []),
     { href: '/about', label: 'How It Works' },
     ...(session?.user.role === 'admin' ? [{ href: '/admin', label: 'Admin' }] : []),
   ]
