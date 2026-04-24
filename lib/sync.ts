@@ -72,7 +72,7 @@ async function syncKudos(userId: string, accessToken: string, maxActivities = 30
 
 export async function syncUser(
   userId: string,
-  options: { skipJointDetection?: boolean; syncKudos?: boolean; forceFull?: boolean } = {}
+  options: { skipJointDetection?: boolean; syncKudos?: boolean } = {}
 ): Promise<number> {
   const { data: tokenRow } = await supabase
     .from('strava_tokens')
@@ -105,8 +105,8 @@ export async function syncUser(
   const settings = await getSettings()
   const multipliers = await getMultipliers()
 
-  // Determine 'after' param from last successful sync (skip if forceFull)
-  const after = !options.forceFull && tokenRow.last_synced_at
+  // Determine 'after' param from last successful sync
+  const after = tokenRow.last_synced_at
     ? Math.floor(new Date(tokenRow.last_synced_at).getTime() / 1000)
     : undefined
 
