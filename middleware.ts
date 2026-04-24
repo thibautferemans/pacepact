@@ -22,7 +22,6 @@ export default withAuth(
         const { pathname } = req.nextUrl
         // Always allow public routes
         if (
-          pathname === '/about' ||
           pathname === '/login' ||
           pathname === '/signup' ||
           pathname === '/setup' ||
