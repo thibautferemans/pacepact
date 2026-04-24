@@ -24,7 +24,7 @@ export default function AdminClient({ currentUserId }: { currentUserId: string }
     { key: 'invites', label: 'Invite Links' },
     { key: 'multipliers', label: 'Multipliers' },
     { key: 'settings', label: 'Settings' },
-    { key: 'flags', label: 'Feature Flags' },
+    { key: 'flags', label: 'Year in Review' },
   ]
 
   return (
