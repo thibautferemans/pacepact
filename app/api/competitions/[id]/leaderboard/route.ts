@@ -26,6 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     .select('user_id, total_score, res_score, distance_m, duration_secs, sport, polyline, start_lat, start_lng, recorded_at')
     .gte('recorded_at', `${comp.start_date}T00:00:00Z`)
     .lte('recorded_at', `${comp.end_date}T23:59:59Z`)
+    .eq('excluded_from_competition', false)
 
   if (comp.sport_filter) {
     query = query.eq('sport', comp.sport_filter)

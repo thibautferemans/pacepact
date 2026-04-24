@@ -21,8 +21,66 @@ export const SPORT_MAP: Record<string, string> = {
   Pilates: 'Strength',
 }
 
+export const STRAVA_DISPLAY_MAP: Record<string, string> = {
+  ...SPORT_MAP,
+  Kayaking: 'Kayaking',
+  Canoeing: 'Canoeing',
+  Rowing: 'Rowing',
+  StandUpPaddling: 'SUP',
+  Surfing: 'Surfing',
+  Windsurf: 'Windsurfing',
+  Kitesurf: 'Kitesurfing',
+  Soccer: 'Soccer',
+  Tennis: 'Tennis',
+  Squash: 'Squash',
+  Badminton: 'Badminton',
+  Golf: 'Golf',
+  Boxing: 'Boxing',
+  MartialArts: 'Martial Arts',
+  InlineSkate: 'Inline Skating',
+  IceSkate: 'Ice Skating',
+  AlpineSki: 'Alpine Skiing',
+  NordicSki: 'Nordic Skiing',
+  BackcountrySki: 'Backcountry Skiing',
+  Snowboard: 'Snowboarding',
+  Snowshoe: 'Snowshoeing',
+  HighIntensityIntervalTraining: 'HIIT',
+  Dance: 'Dance',
+  Skateboard: 'Skateboarding',
+  Wheelchair: 'Wheelchair',
+  Handcycle: 'Handcycle',
+}
+
+export const PACEPACT_SPORTS = new Set(Object.values(SPORT_MAP))
+
 export function mapStravaType(stravaType: string): string {
-  return SPORT_MAP[stravaType] ?? 'Running'
+  return STRAVA_DISPLAY_MAP[stravaType] ?? stravaType
+}
+
+export function isPacePactSport(sport: string): boolean {
+  return PACEPACT_SPORTS.has(sport)
+}
+
+export async function fetchActivityKudos(
+  accessToken: string,
+  activityId: number
+): Promise<{ strava_id: number; name: string }[]> {
+  try {
+    const res = await fetch(
+      `${STRAVA_BASE}/activities/${activityId}/kudos?per_page=200`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+    if (res.status === 429) return []
+    if (!res.ok) return []
+    const data = await res.json()
+    if (!Array.isArray(data)) return []
+    return data.map((k: { id: number; firstname: string; lastname: string }) => ({
+      strava_id: k.id,
+      name: `${k.firstname} ${k.lastname}`.trim(),
+    }))
+  } catch {
+    return []
+  }
 }
 
 export async function refreshStravaToken(refreshToken: string): Promise<{

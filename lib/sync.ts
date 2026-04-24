@@ -3,7 +3,9 @@ import {
   refreshStravaToken,
   fetchStravaActivities,
   fetchRelatedActivities,
+  fetchActivityKudos,
   mapStravaType,
+  isPacePactSport,
 } from './strava'
 import { calculateScore } from './scoring'
 import { GlobalSettings } from '@/types'
@@ -26,9 +28,51 @@ async function getMultipliers(): Promise<Record<string, number>> {
   return map
 }
 
+async function syncKudos(userId: string, accessToken: string, maxActivities = 30): Promise<void> {
+  // Fetch most recent activities that have no kudos records yet
+  const { data: activities } = await supabase
+    .from('activities')
+    .select('id, strava_id, activity_kudos(activity_id)')
+    .eq('user_id', userId)
+    .order('recorded_at', { ascending: false })
+    .limit(maxActivities)
+
+  if (!activities?.length) return
+
+  // Filter to only those with no kudos records
+  const noKudosActivities = activities.filter(
+    (a: any) => !a.activity_kudos || a.activity_kudos.length === 0
+  )
+
+  let consecutiveEmpty = 0
+
+  for (const activity of noKudosActivities) {
+    const kudos = await fetchActivityKudos(accessToken, activity.strava_id)
+
+    if (kudos.length === 0) {
+      consecutiveEmpty++
+      if (consecutiveEmpty >= 3) break
+      continue
+    }
+
+    consecutiveEmpty = 0
+
+    for (const k of kudos) {
+      await supabase.from('activity_kudos').upsert(
+        {
+          activity_id: activity.id,
+          kudos_giver_strava_id: k.strava_id,
+          kudos_giver_name: k.name,
+        },
+        { onConflict: 'activity_id,kudos_giver_strava_id' }
+      )
+    }
+  }
+}
+
 export async function syncUser(
   userId: string,
-  options: { skipJointDetection?: boolean } = {}
+  options: { skipJointDetection?: boolean; syncKudos?: boolean } = {}
 ): Promise<number> {
   const { data: tokenRow } = await supabase
     .from('strava_tokens')
@@ -79,20 +123,35 @@ export async function syncUser(
 
   for (const stravaActivity of allActivities) {
     const sport = mapStravaType(stravaActivity.type)
-    const scoreInput = {
-      duration_secs: stravaActivity.moving_time ?? 0,
-      avg_hr: stravaActivity.average_heartrate ?? null,
-      distance_m: stravaActivity.distance ?? null,
-      elevation_m: stravaActivity.total_elevation_gain ?? null,
-      sport,
-      is_joint: false,
-    }
-
-    const { res_score, social_bonus, total_score, score_tier } = calculateScore(
-      scoreInput, thresholdHr, multipliers, settings
-    )
+    const excluded = !isPacePactSport(sport)
 
     const polylineStr = stravaActivity.map?.summary_polyline ?? null
+
+    let res_score: number
+    let social_bonus: number
+    let total_score: number
+    let score_tier: 1 | 2 | 3
+
+    if (excluded) {
+      res_score = 0
+      social_bonus = 0
+      total_score = 0
+      score_tier = 3
+    } else {
+      const scoreInput = {
+        duration_secs: stravaActivity.moving_time ?? 0,
+        avg_hr: stravaActivity.average_heartrate ?? null,
+        distance_m: stravaActivity.distance ?? null,
+        elevation_m: stravaActivity.total_elevation_gain ?? null,
+        sport,
+        is_joint: false,
+      }
+      const result = calculateScore(scoreInput, thresholdHr, multipliers, settings)
+      res_score = result.res_score
+      social_bonus = result.social_bonus
+      total_score = result.total_score
+      score_tier = result.score_tier
+    }
 
     await supabase.from('activities').upsert(
       {
@@ -111,13 +170,14 @@ export async function syncUser(
         total_score,
         score_tier,
         is_joint: false,
+        excluded_from_competition: excluded,
         recorded_at: stravaActivity.start_date,
       },
       { onConflict: 'strava_id' }
     )
 
-    // Detect joint activities via Strava's related endpoint (skipped on manual syncs)
-    if (options.skipJointDetection) continue
+    // Detect joint activities via Strava's related endpoint (only for non-excluded, non-manual syncs)
+    if (excluded || options.skipJointDetection) continue
     try {
       const related = await fetchRelatedActivities(accessToken, stravaActivity.id)
       for (const rel of related) {
@@ -155,6 +215,15 @@ export async function syncUser(
     last_synced_at: new Date().toISOString(),
   }).eq('user_id', userId)
 
+  // Optionally sync kudos after activity sync
+  if (options.syncKudos) {
+    try {
+      await syncKudos(userId, accessToken)
+    } catch {
+      // Non-fatal: kudos sync failure should not fail the overall sync
+    }
+  }
+
   return allActivities.length
 }
 
@@ -162,7 +231,9 @@ export async function syncAllUsers(): Promise<{ userId: string; synced: number; 
   const { data: tokens } = await supabase.from('strava_tokens').select('user_id')
   if (!tokens?.length) return []
 
-  const results = await Promise.allSettled(tokens.map((t) => syncUser(t.user_id)))
+  const results = await Promise.allSettled(
+    tokens.map((t) => syncUser(t.user_id, { skipJointDetection: false, syncKudos: true }))
+  )
   return results.map((r, i) => ({
     userId: tokens[i].user_id,
     synced: r.status === 'fulfilled' ? r.value : 0,
@@ -176,7 +247,7 @@ export async function recalculateAllScores(): Promise<void> {
 
   const { data: activities } = await supabase
     .from('activities')
-    .select('id, user_id, duration_secs, avg_hr, distance_m, elevation_m, sport, is_joint')
+    .select('id, user_id, duration_secs, avg_hr, distance_m, elevation_m, sport, is_joint, excluded_from_competition')
 
   if (!activities?.length) return
 
@@ -186,6 +257,16 @@ export async function recalculateAllScores(): Promise<void> {
   users?.forEach((u) => { thresholdMap[u.id] = u.threshold_hr ?? 175 })
 
   for (const activity of activities) {
+    if (activity.excluded_from_competition) {
+      await supabase.from('activities').update({
+        res_score: 0,
+        social_bonus: 0,
+        total_score: 0,
+        score_tier: 3,
+      }).eq('id', activity.id)
+      continue
+    }
+
     const thresholdHr = thresholdMap[activity.user_id] ?? 175
     const { res_score, social_bonus, total_score, score_tier } = calculateScore(
       {

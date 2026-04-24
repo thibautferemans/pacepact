@@ -7,7 +7,7 @@ import type { Competition, Team, InviteLink, SportMultiplier, Setting } from '@/
 
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false })
 
-type Tab = 'competitions' | 'teams' | 'users' | 'invites' | 'multipliers' | 'settings'
+type Tab = 'competitions' | 'teams' | 'users' | 'invites' | 'multipliers' | 'settings' | 'flags'
 
 interface AdminUser {
   id: string; name: string; email: string; role: string
@@ -24,6 +24,7 @@ export default function AdminClient({ currentUserId }: { currentUserId: string }
     { key: 'invites', label: 'Invite Links' },
     { key: 'multipliers', label: 'Multipliers' },
     { key: 'settings', label: 'Settings' },
+    { key: 'flags', label: 'Feature Flags' },
   ]
 
   return (
@@ -52,6 +53,7 @@ export default function AdminClient({ currentUserId }: { currentUserId: string }
         {tab === 'invites' && <InvitesTab currentUserId={currentUserId} />}
         {tab === 'multipliers' && <MultipliersTab />}
         {tab === 'settings' && <SettingsTab />}
+        {tab === 'flags' && <FeatureFlagsTab />}
       </div>
     </div>
   )
@@ -682,6 +684,85 @@ function SettingsTab() {
             {saved ? '✓ Saved & recalculated' : saving ? 'Saving…' : 'Save settings'}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Feature Flags ────────────────────────────────────────────────────────────
+function FeatureFlagsTab() {
+  const [flags, setFlags] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+
+  const load = () => {
+    fetch('/api/admin/settings').then((r) => r.json()).then((data: Setting[]) => {
+      const m: Record<string, string> = {}
+      data.forEach((s) => { m[s.key] = s.value })
+      setFlags(m)
+    })
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function toggleFlag(key: string, current: string) {
+    setSaving(true)
+    const newValue = current === 'true' ? 'false' : 'true'
+    await fetch('/api/admin/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [key]: newValue }),
+    })
+    setSaving(false)
+    load()
+  }
+
+  const FLAG_DEFS = [
+    {
+      key: 'feature_year_in_review',
+      label: 'Year in Review',
+      description: 'When enabled, all users can see their personal Year in Review page. When disabled, only admins can access it.',
+    },
+  ]
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-semibold text-gray-800">Feature Flags</h2>
+      </div>
+      <div className="bg-white border border-gray-100 rounded-xl p-5 space-y-4">
+        {FLAG_DEFS.map((f) => {
+          const enabled = flags[f.key] === 'true'
+          return (
+            <div key={f.key} className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-800">{f.label}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {enabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 mt-0.5">{f.description}</p>
+              </div>
+              <button
+                onClick={() => toggleFlag(f.key, flags[f.key] ?? 'false')}
+                disabled={saving}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-60 ${
+                  enabled ? 'bg-[#185FA5]' : 'bg-gray-200'
+                }`}
+                role="switch"
+                aria-checked={enabled}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    enabled ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
