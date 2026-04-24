@@ -90,21 +90,8 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Fetch oldest activity recorded_at for this user
-  const { data: oldestRow } = await supabase
-    .from('activities')
-    .select('recorded_at')
-    .eq('user_id', userId)
-    .order('recorded_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-
-  // Build available years
-  const oldestYear = oldestRow ? new Date(oldestRow.recorded_at).getFullYear() : currentYear
-  const availableYears: number[] = []
-  for (let y = currentYear; y >= oldestYear; y--) {
-    availableYears.push(y)
-  }
+  // Available years: only 2025 and 2026 (cap to current year)
+  const availableYears = [2026, 2025].filter((y) => y <= currentYear)
 
   // ── Hero ─────────────────────────────────────────────────────────────────────
 
@@ -132,6 +119,8 @@ export async function GET(req: NextRequest) {
 
   // ── Volume ───────────────────────────────────────────────────────────────────
 
+  const CHART_SPORTS = new Set(['Running', 'Swimming', 'Cycling'])
+
   const distanceBySport: Record<string, number> = {}
   const timeBySport: Record<string, number> = {}
   let totalElevationM = 0
@@ -144,11 +133,14 @@ export async function GET(req: NextRequest) {
     totalElevationM += a.elevation_m ?? 0
   }
 
+  // Only show the three core sports in the bar charts
   const distancePerSport = Object.entries(distanceBySport)
+    .filter(([sport]) => CHART_SPORTS.has(sport))
     .map(([sport, km]) => ({ sport, km: Math.round(km * 10) / 10 }))
     .sort((a, b) => b.km - a.km)
 
   const timePerSport = Object.entries(timeBySport)
+    .filter(([sport]) => CHART_SPORTS.has(sport))
     .map(([sport, hours]) => ({ sport, hours: Math.round(hours * 10) / 10 }))
     .sort((a, b) => b.hours - a.hours)
 
