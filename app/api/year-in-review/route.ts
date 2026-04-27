@@ -90,6 +90,17 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Fetch other PacePact members' joint activities in the same year (for top partner matching)
+  const { data: othersJointRaw } = await supabase
+    .from('activities')
+    .select('user_id, sport, recorded_at')
+    .neq('user_id', userId)
+    .eq('is_joint', true)
+    .gte('recorded_at', yearStart)
+    .lte('recorded_at', yearEnd)
+
+  const othersJoint = othersJointRaw ?? []
+
   // Available years: only 2025 and 2026 (cap to current year)
   const availableYears = [2026, 2025].filter((y) => y <= currentYear)
 
@@ -278,18 +289,21 @@ export async function GET(req: NextRequest) {
   const totalJointActivities = myJointActivities.length
   const totalActivityCount = activities.length
 
-  // Top partner: count occurrences in joint_partner_names (any Strava user, not just PacePact)
+  // Top partner: match other PacePact members who did the same sport on the same day
   const partnerCount: Record<string, number> = {}
-  for (const a of activities) {
-    const names: string[] = a.joint_partner_names ?? []
-    for (const name of names) {
-      if (name) partnerCount[name] = (partnerCount[name] ?? 0) + 1
+  for (const myActivity of myJointActivities) {
+    const myDate = myActivity.recorded_at.slice(0, 10)
+    const mySport = myActivity.sport
+    for (const other of othersJoint) {
+      if (other.recorded_at.slice(0, 10) === myDate && other.sport === mySport) {
+        partnerCount[other.user_id] = (partnerCount[other.user_id] ?? 0) + 1
+      }
     }
   }
   let topPartner: { name: string; count: number } | null = null
-  for (const [name, count] of Object.entries(partnerCount)) {
+  for (const [uid, count] of Object.entries(partnerCount)) {
     if (!topPartner || count > topPartner.count) {
-      topPartner = { name, count }
+      topPartner = { name: userNameMap[uid] ?? 'Unknown', count }
     }
   }
 
