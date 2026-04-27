@@ -518,7 +518,7 @@ export default function YearInReviewClient({
                   }
                 />
                 <BigStat
-                  label="Top training partner"
+                  label="Top PacePact training partner"
                   value={data.social.topPartner?.name ?? '—'}
                   insight={data.social.topPartner
                     ? `You and ${data.social.topPartner.name} trained together ${data.social.topPartner.count} times`
