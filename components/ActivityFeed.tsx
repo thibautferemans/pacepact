@@ -8,8 +8,6 @@ const SPORT_ICONS: Record<string, string> = {
   Running: '🏃',
   Swimming: '🏊',
   Cycling: '🚴',
-  Hiking: '🥾',
-  Strength: '🏋️',
 }
 
 function formatDuration(secs: number): string {
@@ -19,7 +17,7 @@ function formatDuration(secs: number): string {
 }
 
 function ScoreBadge({ activity }: { activity: Activity }) {
-  const res = Math.round(activity.res_score * 10) / 10
+  const res = Math.round(activity.res_score)
   const tier = activity.score_tier
   const warn = tier >= 2 ? ' ⚠️' : ''
 

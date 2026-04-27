@@ -5,10 +5,10 @@ import { LeaderboardEntry } from '@/types'
 const MEDALS = ['🥇', '🥈', '🥉']
 
 function formatScore(score: number, metric: string): string {
-  if (metric === 'total_distance') return `${score.toFixed(1)} km`
-  if (metric === 'total_duration') return `${score.toFixed(1)} h`
+  if (metric === 'total_distance') return `${Math.round(score)} km`
+  if (metric === 'total_duration') return `${Math.round(score)} h`
   if (metric === 'activity_count') return `${Math.round(score)} acts`
-  return String(Math.round(score * 10) / 10)
+  return String(Math.round(score))
 }
 
 export default function Leaderboard({

@@ -147,12 +147,12 @@ export async function GET(req: NextRequest) {
   // Only show the three core sports in the bar charts
   const distancePerSport = Object.entries(distanceBySport)
     .filter(([sport]) => CHART_SPORTS.has(sport))
-    .map(([sport, km]) => ({ sport, km: Math.round(km * 10) / 10 }))
+    .map(([sport, km]) => ({ sport, km: Math.round(km) }))
     .sort((a, b) => b.km - a.km)
 
   const timePerSport = Object.entries(timeBySport)
     .filter(([sport]) => CHART_SPORTS.has(sport))
-    .map(([sport, hours]) => ({ sport, hours: Math.round(hours * 10) / 10 }))
+    .map(([sport, hours]) => ({ sport, hours: Math.round(hours) }))
     .sort((a, b) => b.hours - a.hours)
 
   const avgDurationMins = activities.length > 0
@@ -198,7 +198,7 @@ export async function GET(req: NextRequest) {
       mostIntenseWeek = {
         start: formatDayMonth(weekStart),
         end: formatDayMonth(endDate.toISOString().slice(0, 10)),
-        res: Math.round(res * 10) / 10,
+        res: Math.round(res),
       }
     }
   }
@@ -212,7 +212,7 @@ export async function GET(req: NextRequest) {
   let mostIntenseMonth: { month: number; res: number } | null = null
   for (let m = 0; m < 12; m++) {
     if (monthRES[m] > 0 && (!mostIntenseMonth || monthRES[m] > mostIntenseMonth.res)) {
-      mostIntenseMonth = { month: m, res: Math.round(monthRES[m] * 10) / 10 }
+      mostIntenseMonth = { month: m, res: Math.round(monthRES[m]) }
     }
   }
 
@@ -370,9 +370,9 @@ export async function GET(req: NextRequest) {
     allUsers: isAdmin ? allUsers : [],
 
     hero: {
-      totalDistanceKm: Math.round(totalDistanceKm * 10) / 10,
-      totalTrainingHours: Math.round(totalTrainingHours * 10) / 10,
-      totalRES: Math.round(totalRES * 10) / 10,
+      totalDistanceKm: Math.round(totalDistanceKm),
+      totalTrainingHours: Math.round(totalTrainingHours),
+      totalRES: Math.round(totalRES),
       totalActiveDays,
       totalDaysElapsed,
       activityCount: activities.length,
@@ -386,7 +386,7 @@ export async function GET(req: NextRequest) {
     },
 
     effort: {
-      projectedYearlyRES: Math.round(projectedYearlyRES * 10) / 10,
+      projectedYearlyRES: Math.round(projectedYearlyRES),
       avgHR: avgHR !== null ? Math.round(avgHR) : null,
       highestHR,
       mostIntenseWeek,
