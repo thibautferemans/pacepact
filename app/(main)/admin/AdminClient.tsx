@@ -434,16 +434,16 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
   return (
     <div>
       <h2 className="font-semibold text-gray-800 mb-4">Users ({users.length})</h2>
-      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white border border-gray-100 rounded-xl overflow-x-auto">
+        <table className="w-full text-sm min-w-[600px]">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
             <tr>
               <th className="px-4 py-3 text-left">Name</th>
-              <th className="px-4 py-3 text-left">Email</th>
+              <th className="px-4 py-3 text-left hidden sm:table-cell">Email</th>
               <th className="px-4 py-3 text-left">Role</th>
               <th className="px-4 py-3 text-left">Strava</th>
-              <th className="px-4 py-3 text-left">Team</th>
-              <th className="px-4 py-3 text-left">Last sync</th>
+              <th className="px-4 py-3 text-left hidden sm:table-cell">Team</th>
+              <th className="px-4 py-3 text-left hidden sm:table-cell">Last sync</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -451,15 +451,15 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
             {users.map((u) => (
               <tr key={u.id} className={u.id === currentUserId ? 'bg-[#E6F1FB]/50' : ''}>
                 <td className="px-4 py-3 font-medium text-gray-900">{u.name}</td>
-                <td className="px-4 py-3 text-gray-500">{u.email}</td>
+                <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{u.email}</td>
                 <td className="px-4 py-3">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${u.role === 'admin' ? 'bg-[#185FA5] text-white' : 'bg-gray-100 text-gray-600'}`}>
                     {u.role}
                   </span>
                 </td>
                 <td className="px-4 py-3">{u.stravaConnected ? '✅' : '❌'}</td>
-                <td className="px-4 py-3 text-gray-500 text-xs">{u.team?.name ?? '—'}</td>
-                <td className="px-4 py-3 text-gray-400 text-xs">
+                <td className="px-4 py-3 text-gray-500 text-xs hidden sm:table-cell">{u.team?.name ?? '—'}</td>
+                <td className="px-4 py-3 text-gray-400 text-xs hidden sm:table-cell">
                   {u.lastSynced ? format(new Date(u.lastSynced), 'd MMM HH:mm') : '—'}
                 </td>
                 <td className="px-4 py-3">

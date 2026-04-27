@@ -132,14 +132,34 @@ export default function Navbar({ hasMainComp, showYearInReview }: { hasMainComp?
               {link.label}
             </Link>
           ))}
-          <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-sm text-gray-500">{session?.user.name}</span>
-            <button
-              onClick={() => signOut({ callbackUrl: `${window.location.origin}/login` })}
-              className="text-sm text-red-500"
-            >
-              Sign out
-            </button>
+          <div className="pt-2 border-t border-gray-100 space-y-2">
+            {session && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-500">
+                  {syncMsg ? (
+                    <span className={syncMsg.startsWith('✓') ? 'text-green-600' : 'text-red-500'}>
+                      {syncMsg}
+                    </span>
+                  ) : session.user.name}
+                </span>
+                <button
+                  onClick={handleSync}
+                  disabled={syncing}
+                  className="text-sm text-gray-500 hover:text-gray-900 disabled:opacity-50"
+                >
+                  {syncing ? 'Syncing…' : 'Sync now'}
+                </button>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">{session?.user.name}</span>
+              <button
+                onClick={() => signOut({ callbackUrl: `${window.location.origin}/login` })}
+                className="text-sm text-red-500"
+              >
+                Sign out
+              </button>
+            </div>
           </div>
         </div>
       )}
