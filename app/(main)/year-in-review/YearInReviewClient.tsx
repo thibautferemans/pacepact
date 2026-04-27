@@ -75,10 +75,10 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-1 shadow-sm">
-      <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</span>
-      <span className="text-3xl font-bold text-gray-900 leading-tight">{value}</span>
-      {sub && <span className="text-[13px] text-gray-500">{sub}</span>}
+    <div className="bg-white border border-gray-100 rounded-2xl p-3 sm:p-5 flex flex-col gap-1 shadow-sm">
+      <span className="text-[10px] sm:text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</span>
+      <span className="text-xl sm:text-3xl font-bold text-gray-900 leading-tight">{value}</span>
+      {sub && <span className="text-[11px] sm:text-[13px] text-gray-500">{sub}</span>}
     </div>
   )
 }
@@ -335,7 +335,7 @@ export default function YearInReviewClient({
           />
 
           {/* Hero stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-3">
             <StatCard
               label="Total distance"
               value={`${data.hero.totalDistanceKm.toLocaleString()} km`}
