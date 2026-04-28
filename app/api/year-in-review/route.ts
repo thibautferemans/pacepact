@@ -4,21 +4,28 @@ import { authOptions } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { activityMatchesLocation } from '@/lib/location'
 
+const TZ = 'Europe/Brussels'
+
+// Convert a UTC ISO string to a YYYY-MM-DD local date string in Brussels timezone
+function localDate(isoString: string): string {
+  return new Date(isoString).toLocaleDateString('en-CA', { timeZone: TZ })
+}
+
 function isLeapYear(year: number): boolean {
   return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
 }
 
-function getISOWeekStart(date: Date): string {
-  const d = new Date(date)
+function getISOWeekStart(localDateStr: string): string {
+  // localDateStr is already YYYY-MM-DD in local time; treat as UTC midnight for arithmetic
+  const d = new Date(localDateStr + 'T00:00:00Z')
   const day = d.getUTCDay()
-  // Monday = 0 offset
   const diff = (day === 0 ? -6 : 1 - day)
   d.setUTCDate(d.getUTCDate() + diff)
   return d.toISOString().slice(0, 10)
 }
 
 function formatDayMonth(dateStr: string): string {
-  const d = new Date(dateStr)
+  const d = new Date(dateStr + 'T00:00:00Z')
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   return `${d.getUTCDate()} ${months[d.getUTCMonth()]}`
 }
@@ -60,20 +67,27 @@ export async function GET(req: NextRequest) {
 
   const currentUser = { id: userId, name: userNameMap[userId] ?? 'Unknown' }
 
-  // Year boundaries
-  const yearStart = `${year}-01-01T00:00:00Z`
-  const yearEnd = `${year}-12-31T23:59:59Z`
+  // Year boundaries — extend UTC range by 2 h on the early side to capture activities
+  // whose UTC timestamp falls just outside the calendar year but whose Brussels
+  // local date is still within it (Brussels is UTC+1 in winter, UTC+2 in summer).
+  const yearStartUtc = `${year - 1}-12-31T22:00:00Z`
+  const yearEndUtc   = `${year}-12-31T23:59:59Z`
 
   // Fetch user activities for the year
   const { data: activitiesRaw } = await supabase
     .from('activities')
     .select('id, strava_id, sport, duration_secs, distance_m, avg_hr, elevation_m, start_lat, start_lng, polyline, res_score, social_bonus, total_score, score_tier, is_joint, excluded_from_competition, recorded_at, joint_partner_names')
     .eq('user_id', userId)
-    .gte('recorded_at', yearStart)
-    .lte('recorded_at', yearEnd)
+    .gte('recorded_at', yearStartUtc)
+    .lte('recorded_at', yearEndUtc)
     .order('recorded_at', { ascending: true })
 
-  const activities = activitiesRaw ?? []
+  // Filter to activities whose Brussels local date falls within the requested year
+  const yearStr = String(year)
+  const activities = (activitiesRaw ?? []).filter((a) => {
+    const d = localDate(a.recorded_at)
+    return d >= `${yearStr}-01-01` && d <= `${yearStr}-12-31`
+  })
 
   // Fetch activity kudos for these activities
   const activityIds = activities.map((a) => a.id)
@@ -96,8 +110,8 @@ export async function GET(req: NextRequest) {
     .select('user_id, sport, recorded_at')
     .neq('user_id', userId)
     .eq('is_joint', true)
-    .gte('recorded_at', yearStart)
-    .lte('recorded_at', yearEnd)
+    .gte('recorded_at', yearStartUtc)
+    .lte('recorded_at', yearEndUtc)
 
   const othersJoint = othersJointRaw ?? []
 
@@ -114,8 +128,9 @@ export async function GET(req: NextRequest) {
   const totalTrainingHours = totalDurationSecs / 3600
   const totalRES = competitionActivities.reduce((s, a) => s + (a.res_score ?? 0), 0)
 
-  // Active days
-  const activeDaysSet = new Set(activities.map((a) => a.recorded_at.slice(0, 10)))
+  // Active days — use Brussels local date so early-morning activities aren't
+  // shifted to the previous calendar day by the UTC offset
+  const activeDaysSet = new Set(activities.map((a) => localDate(a.recorded_at)))
   const totalActiveDays = activeDaysSet.size
 
   // Days elapsed
@@ -179,7 +194,7 @@ export async function GET(req: NextRequest) {
   const highestHR = highestHRActivity
     ? {
         sport: highestHRActivity.sport,
-        date: highestHRActivity.recorded_at.slice(0, 10),
+        date: localDate(highestHRActivity.recorded_at),
         hr: Math.round(highestHRActivity.avg_hr ?? 0),
       }
     : null
@@ -187,7 +202,7 @@ export async function GET(req: NextRequest) {
   // Most intense week
   const weekRES: Record<string, number> = {}
   for (const a of competitionActivities) {
-    const weekStart = getISOWeekStart(new Date(a.recorded_at))
+    const weekStart = getISOWeekStart(localDate(a.recorded_at))
     weekRES[weekStart] = (weekRES[weekStart] ?? 0) + (a.res_score ?? 0)
   }
   let mostIntenseWeek: { start: string; end: string; res: number } | null = null
@@ -206,7 +221,8 @@ export async function GET(req: NextRequest) {
   // Most intense month
   const monthRES: number[] = Array(12).fill(0)
   for (const a of competitionActivities) {
-    const month = new Date(a.recorded_at).getUTCMonth()
+    const d = localDate(a.recorded_at)
+    const month = parseInt(d.slice(5, 7), 10) - 1
     monthRES[month] += a.res_score ?? 0
   }
   let mostIntenseMonth: { month: number; res: number } | null = null
@@ -221,9 +237,9 @@ export async function GET(req: NextRequest) {
   const activeDaysPerMonth: number[] = Array(12).fill(0)
   const activeDaysByMonth: Set<string>[] = Array.from({ length: 12 }, () => new Set())
   for (const a of activities) {
-    const d = new Date(a.recorded_at)
-    const month = d.getUTCMonth()
-    activeDaysByMonth[month].add(a.recorded_at.slice(0, 10))
+    const d = localDate(a.recorded_at)         // YYYY-MM-DD in Brussels time
+    const month = parseInt(d.slice(5, 7), 10) - 1  // 0-indexed month
+    activeDaysByMonth[month].add(d)
   }
   for (let m = 0; m < 12; m++) {
     activeDaysPerMonth[m] = activeDaysByMonth[m].size
@@ -270,10 +286,11 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Most active day of week
+  // Most active day of week — use Brussels local date
   const dowCounts: number[] = Array(7).fill(0)
   for (const a of activities) {
-    const dow = new Date(a.recorded_at).getUTCDay()
+    const d = localDate(a.recorded_at)
+    const dow = new Date(d + 'T00:00:00Z').getUTCDay()
     dowCounts[dow]++
   }
   let mostActiveDayOfWeek: number | null = null
@@ -289,13 +306,13 @@ export async function GET(req: NextRequest) {
   const totalJointActivities = myJointActivities.length
   const totalActivityCount = activities.length
 
-  // Top partner: match other PacePact members who did the same sport on the same day
+  // Top partner: match other PacePact members who did the same sport on the same local day
   const partnerCount: Record<string, number> = {}
   for (const myActivity of myJointActivities) {
-    const myDate = myActivity.recorded_at.slice(0, 10)
+    const myDateLocal = localDate(myActivity.recorded_at)
     const mySport = myActivity.sport
     for (const other of othersJoint) {
-      if (other.recorded_at.slice(0, 10) === myDate && other.sport === mySport) {
+      if (localDate(other.recorded_at) === myDateLocal && other.sport === mySport) {
         partnerCount[other.user_id] = (partnerCount[other.user_id] ?? 0) + 1
       }
     }
@@ -331,14 +348,14 @@ export async function GET(req: NextRequest) {
       longestByDistance = {
         sport: a.sport,
         km: Math.round((a.distance_m / 1000) * 10) / 10,
-        date: a.recorded_at.slice(0, 10),
+        date: localDate(a.recorded_at),
       }
     }
     if (a.duration_secs && (!longestByDuration || a.duration_secs > (longestByDuration.hours * 3600))) {
       longestByDuration = {
         sport: a.sport,
         hours: Math.round((a.duration_secs / 3600) * 10) / 10,
-        date: a.recorded_at.slice(0, 10),
+        date: localDate(a.recorded_at),
       }
     }
   }
@@ -358,8 +375,8 @@ export async function GET(req: NextRequest) {
     const sorted = blaarmeersenSwims.sort((a, b) => a.recorded_at.localeCompare(b.recorded_at))
     blaarmeersen = {
       count: sorted.length,
-      first: formatDayMonth(sorted[0].recorded_at.slice(0, 10)),
-      last: formatDayMonth(sorted[sorted.length - 1].recorded_at.slice(0, 10)),
+      first: formatDayMonth(localDate(sorted[0].recorded_at)),
+      last: formatDayMonth(localDate(sorted[sorted.length - 1].recorded_at)),
     }
   }
 
