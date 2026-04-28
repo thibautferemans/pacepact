@@ -124,12 +124,8 @@ export async function syncUser(
 
   // ── Phase 1: compute scores and build upsert batch (in-memory, fast) ─────────
 
-  // Joint detection only runs for recent activities to avoid thousands of Strava API calls.
-  // If incremental sync: all fetched activities are recent by definition.
-  // If full history sync (after=undefined): limit to last 30 days.
-  const jointCutoffMs = after
-    ? after * 1000
-    : Date.now() - 30 * 24 * 60 * 60 * 1000
+  // Joint detection runs for all activities since Jan 1 2025 (covers both 2025 and 2026 YiR).
+  const jointCutoffMs = new Date('2025-01-01T00:00:00Z').getTime()
 
   const upsertBatch: any[] = []
   const jointCandidates: any[] = []
