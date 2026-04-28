@@ -103,10 +103,13 @@ export async function syncUser(
   const settings = await getSettings()
   const multipliers = await getMultipliers()
 
-  // Determine 'after' param from last successful sync
+  // Determine 'after' param from last successful sync.
+  // If never synced, default to Jan 1 2025 — fetching all Strava history from
+  // the beginning exceeds Vercel's 60s limit and prevents last_synced_at ever being saved.
+  const EARLIEST_AFTER = Math.floor(new Date('2025-01-01T00:00:00Z').getTime() / 1000)
   const after = tokenRow.last_synced_at
     ? Math.floor(new Date(tokenRow.last_synced_at).getTime() / 1000)
-    : undefined
+    : EARLIEST_AFTER
 
   // Fetch all pages from Strava
   let page = 1
