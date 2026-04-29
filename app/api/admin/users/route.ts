@@ -39,7 +39,7 @@ export async function GET() {
     ? await supabase
         .from('activities')
         .select('id, user_id')
-        .in('id', [...new Set(kudosRows.map((k) => k.activity_id))])
+        .in('id', Array.from(new Set(kudosRows.map((k) => k.activity_id))))
     : { data: [] }
 
   // Build per-user maps
