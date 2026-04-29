@@ -27,6 +27,7 @@ export default async function ProgressPage() {
   const { data: activities } = await supabase
     .from('activities')
     .select('*, user:user_id(id, name)')
+    .eq('excluded_from_competition', false)
     .gte('recorded_at', `${mainComp.start_date}T00:00:00Z`)
     .lte('recorded_at', `${mainComp.end_date}T23:59:59Z`)
     .order('recorded_at', { ascending: false })

@@ -76,7 +76,7 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-3 sm:p-5 flex flex-col gap-1 shadow-sm">
-      <span className="text-[10px] sm:text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</span>
+      <span className="text-[10px] sm:text-xs font-medium text-gray-400 uppercase tracking-wide leading-tight min-h-[2rem] sm:min-h-0 block">{label}</span>
       <span className="text-xl sm:text-3xl font-bold text-gray-900 leading-tight">{value}</span>
       {sub && <span className="text-[11px] sm:text-[13px] text-gray-500">{sub}</span>}
     </div>

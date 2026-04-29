@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
   let query = supabase
     .from('activities')
     .select('*, user:user_id(id, name)')
+    .eq('excluded_from_competition', false)
     .order('recorded_at', { ascending: false })
     .limit(limit)
 
