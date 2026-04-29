@@ -124,8 +124,10 @@ export async function syncUser(
 
   // ── Phase 1: compute scores and build upsert batch (in-memory, fast) ─────────
 
-  // Joint detection runs for all activities since Jan 1 2025 (covers both 2025 and 2026 YiR).
-  const jointCutoffMs = new Date('2025-01-01T00:00:00Z').getTime()
+  // Joint detection only runs on activities fetched in this sync window (i.e. since
+  // last_synced_at). Running it on the full 2025 history every cron causes 400+ serial
+  // Strava API calls and a guaranteed Vercel timeout before kudos ever runs.
+  const jointCutoffMs = after * 1000
 
   const upsertBatch: any[] = []
   const jointCandidates: any[] = []
