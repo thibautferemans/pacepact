@@ -30,15 +30,27 @@ export async function GET() {
     .from('activities')
     .select('user_id')
     .eq('is_joint', true)
+
+  // Kudos: get all activity_ids with kudos, then look up their user_ids
   const { data: kudosRows } = await supabase
     .from('activity_kudos')
-    .select('activity_id, activities!inner(user_id)')
+    .select('activity_id')
+  const { data: kudosActivities } = kudosRows?.length
+    ? await supabase
+        .from('activities')
+        .select('id, user_id')
+        .in('id', [...new Set(kudosRows.map((k) => k.activity_id))])
+    : { data: [] }
 
   // Build per-user maps
   const actCountMap: Record<string, number> = {}
   const jointCountMap: Record<string, number> = {}
   const kudosCountMap: Record<string, number> = {}
+  const kudosActivityUserMap: Record<string, string> = {}
 
+  for (const a of kudosActivities ?? []) {
+    kudosActivityUserMap[a.id] = a.user_id
+  }
   for (const a of activityCounts ?? []) {
     actCountMap[a.user_id] = (actCountMap[a.user_id] ?? 0) + 1
   }
@@ -46,7 +58,7 @@ export async function GET() {
     jointCountMap[a.user_id] = (jointCountMap[a.user_id] ?? 0) + 1
   }
   for (const k of kudosRows ?? []) {
-    const uid = (k.activities as any)?.user_id
+    const uid = kudosActivityUserMap[k.activity_id]
     if (uid) kudosCountMap[uid] = (kudosCountMap[uid] ?? 0) + 1
   }
 
