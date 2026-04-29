@@ -14,17 +14,57 @@ export async function GET() {
     .select('id, name, email, role, threshold_hr, created_at')
     .order('created_at')
 
-  const { data: tokens } = await supabase.from('strava_tokens').select('user_id, last_synced_at')
+  const { data: tokens } = await supabase
+    .from('strava_tokens')
+    .select('user_id, last_synced_at, backfill_offset_kudos, backfill_offset_joint, backfill_complete_at')
+
   const { data: memberships } = await supabase
     .from('team_memberships')
     .select('user_id, teams(id, name, colour)')
 
-  const enriched = (users ?? []).map((u) => ({
-    ...u,
-    stravaConnected: (tokens ?? []).some((t) => t.user_id === u.id),
-    lastSynced: (tokens ?? []).find((t) => t.user_id === u.id)?.last_synced_at ?? null,
-    team: (memberships ?? []).find((m) => m.user_id === u.id)?.teams ?? null,
-  }))
+  // Activity counts per user
+  const { data: activityCounts } = await supabase
+    .from('activities')
+    .select('user_id')
+  const { data: jointCounts } = await supabase
+    .from('activities')
+    .select('user_id')
+    .eq('is_joint', true)
+  const { data: kudosRows } = await supabase
+    .from('activity_kudos')
+    .select('activity_id, activities!inner(user_id)')
+
+  // Build per-user maps
+  const actCountMap: Record<string, number> = {}
+  const jointCountMap: Record<string, number> = {}
+  const kudosCountMap: Record<string, number> = {}
+
+  for (const a of activityCounts ?? []) {
+    actCountMap[a.user_id] = (actCountMap[a.user_id] ?? 0) + 1
+  }
+  for (const a of jointCounts ?? []) {
+    jointCountMap[a.user_id] = (jointCountMap[a.user_id] ?? 0) + 1
+  }
+  for (const k of kudosRows ?? []) {
+    const uid = (k.activities as any)?.user_id
+    if (uid) kudosCountMap[uid] = (kudosCountMap[uid] ?? 0) + 1
+  }
+
+  const enriched = (users ?? []).map((u) => {
+    const token = (tokens ?? []).find((t) => t.user_id === u.id)
+    return {
+      ...u,
+      stravaConnected: !!token,
+      lastSynced: token?.last_synced_at ?? null,
+      backfillComplete: !!token?.backfill_complete_at,
+      backfillOffsetKudos: token?.backfill_offset_kudos ?? 0,
+      backfillOffsetJoint: token?.backfill_offset_joint ?? 0,
+      team: (memberships ?? []).find((m) => m.user_id === u.id)?.teams ?? null,
+      totalActivities: actCountMap[u.id] ?? 0,
+      totalJoint: jointCountMap[u.id] ?? 0,
+      totalKudos: kudosCountMap[u.id] ?? 0,
+    }
+  })
 
   return NextResponse.json(enriched)
 }

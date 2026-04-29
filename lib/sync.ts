@@ -124,10 +124,14 @@ export async function syncUser(
 
   // ── Phase 1: compute scores and build upsert batch (in-memory, fast) ─────────
 
-  // Joint detection only runs on activities fetched in this sync window (i.e. since
-  // last_synced_at). Running it on the full 2025 history every cron causes 400+ serial
-  // Strava API calls and a guaranteed Vercel timeout before kudos ever runs.
-  const jointCutoffMs = after * 1000
+  // Joint detection cutoff: on the very first sync (last_synced_at was null) we cap
+  // to the last 30 days so we don't queue 400+ serial API calls and time out.
+  // On subsequent runs we use `after` so only newly fetched activities are checked.
+  const isFirstSync = !tokenRow.last_synced_at
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+  const jointCutoffMs = isFirstSync
+    ? Date.now() - THIRTY_DAYS_MS
+    : after * 1000
 
   const upsertBatch: any[] = []
   const jointCandidates: any[] = []
@@ -302,6 +306,146 @@ export async function syncAllUsers(): Promise<{ userId: string; synced: number; 
     synced: r.status === 'fulfilled' ? r.value : 0,
     error: r.status === 'rejected' ? String(r.reason) : undefined,
   }))
+}
+
+async function getAccessToken(userId: string): Promise<string> {
+  const { data: tokenRow } = await supabase
+    .from('strava_tokens').select('*').eq('user_id', userId).single()
+  if (!tokenRow) throw new Error('No Strava token for user')
+
+  if (new Date(tokenRow.expires_at).getTime() < Date.now() + 5 * 60 * 1000) {
+    const refreshed = await refreshStravaToken(tokenRow.refresh_token)
+    await supabase.from('strava_tokens').update({
+      access_token: refreshed.access_token,
+      refresh_token: refreshed.refresh_token,
+      expires_at: new Date(refreshed.expires_at * 1000).toISOString(),
+    }).eq('user_id', userId)
+    return refreshed.access_token
+  }
+  return tokenRow.access_token
+}
+
+/**
+ * Backfill kudos for a user's activities.
+ * Processes `limit` activities (newest first) starting at `offset`.
+ * Only fetches kudos for activities that don't have any yet.
+ * Returns { processed, hasMore } so the caller can chain batches.
+ */
+export async function backfillKudos(
+  userId: string,
+  limit = 40,
+  offset = 0,
+): Promise<{ processed: number; hasMore: boolean }> {
+  const accessToken = await getAccessToken(userId)
+
+  const { data: activities } = await supabase
+    .from('activities')
+    .select('id, strava_id, activity_kudos(activity_id)')
+    .eq('user_id', userId)
+    .order('recorded_at', { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (!activities?.length) return { processed: 0, hasMore: false }
+
+  const noKudos = activities.filter(
+    (a: any) => !a.activity_kudos || a.activity_kudos.length === 0
+  )
+
+  for (const activity of noKudos) {
+    const kudos = await fetchActivityKudos(accessToken, activity.strava_id)
+    for (const k of kudos) {
+      await supabase.from('activity_kudos').upsert(
+        {
+          activity_id: activity.id,
+          kudos_giver_strava_id: k.strava_id,
+          kudos_giver_name: k.name,
+        },
+        { onConflict: 'activity_id,kudos_giver_strava_id' }
+      )
+    }
+  }
+
+  return { processed: activities.length, hasMore: activities.length === limit }
+}
+
+/**
+ * Backfill joint-activity detection for a user's activities since a given date.
+ * Processes `limit` activities starting at `offset` (newest first).
+ * Returns { processed, hasMore } so the caller can chain batches.
+ */
+export async function backfillJointDetection(
+  userId: string,
+  since = '2025-01-01T00:00:00Z',
+  limit = 40,
+  offset = 0,
+): Promise<{ processed: number; hasMore: boolean }> {
+  const accessToken = await getAccessToken(userId)
+  const settings = await getSettings()
+  const multipliers = await getMultipliers()
+
+  const { data: user } = await supabase
+    .from('users').select('threshold_hr').eq('id', userId).single()
+  const thresholdHr = user?.threshold_hr ?? 175
+
+  const { data: activitiesRaw } = await supabase
+    .from('activities')
+    .select('id, strava_id, sport, duration_secs, avg_hr, distance_m, elevation_m')
+    .eq('user_id', userId)
+    .eq('excluded_from_competition', false)
+    .gte('recorded_at', since)
+    .order('recorded_at', { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  const activities = activitiesRaw ?? []
+
+  for (const activity of activities) {
+    try {
+      const related = await fetchRelatedActivities(accessToken, activity.strava_id)
+      if (related.length === 0) continue
+
+      const partnerNames: string[] = related
+        .map((rel: any) => `${(rel.athlete?.firstname ?? '').trim()} ${(rel.athlete?.lastname ?? '').trim()}`.trim())
+        .filter(Boolean)
+
+      if (partnerNames.length > 0) {
+        await supabase.from('activities')
+          .update({ joint_partner_names: partnerNames })
+          .eq('strava_id', activity.strava_id)
+      }
+
+      const scoreResult = calculateScore(
+        {
+          duration_secs: activity.duration_secs ?? 0,
+          avg_hr: activity.avg_hr ?? null,
+          distance_m: activity.distance_m ?? null,
+          elevation_m: activity.elevation_m ?? null,
+          sport: activity.sport,
+          is_joint: false,
+        },
+        thresholdHr, multipliers, settings,
+      )
+
+      for (const rel of related) {
+        const { data: relActivity } = await supabase
+          .from('activities').select('id, res_score').eq('strava_id', rel.id).maybeSingle()
+
+        if (relActivity) {
+          const bonus = settings.social_bonus_points
+          await supabase.from('activities').update({
+            is_joint: true, social_bonus: bonus,
+            total_score: scoreResult.res_score + bonus,
+          }).eq('strava_id', activity.strava_id)
+          await supabase.from('activities').update({
+            is_joint: true, social_bonus: bonus,
+            total_score: parseFloat(relActivity.res_score) + bonus,
+          }).eq('id', relActivity.id)
+          break
+        }
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  return { processed: activities.length, hasMore: activities.length === limit }
 }
 
 export async function recalculateAllScores(): Promise<void> {

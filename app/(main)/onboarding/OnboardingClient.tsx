@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Logo from '@/components/Logo'
 
-const STEPS = ['connect', 'threshold', 'follow'] as const
+const STEPS = ['connect', 'importing', 'threshold', 'follow'] as const
 type Step = typeof STEPS[number]
 
 export default function OnboardingClient() {
@@ -16,16 +16,82 @@ export default function OnboardingClient() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // Backfill progress state
+  const [totalActivities, setTotalActivities] = useState(0)
+  const [kudosOffset, setKudosOffset] = useState(0)
+  const [jointOffset, setJointOffset] = useState(0)
+  const [backfillDone, setBackfillDone] = useState(false)
+
   useEffect(() => {
     const stepParam = params.get('step') as Step
-    const stravaConnected = params.get('strava') === 'connected' || session?.user.stravaConnected
+    const stravaJustConnected = params.get('strava') === 'connected'
+    const stravaConnected = stravaJustConnected || session?.user.stravaConnected
 
     if (stepParam && STEPS.includes(stepParam)) {
       setStep(stepParam)
+    } else if (stravaJustConnected) {
+      // Fresh OAuth — go to importing step
+      setStep('importing')
     } else if (stravaConnected) {
       setStep('threshold')
     }
   }, [params, session])
+
+  // Auto-run backfill batches while on the importing step
+  useEffect(() => {
+    if (step !== 'importing') return
+
+    let cancelled = false
+
+    async function runBackfill() {
+      // Get initial state
+      const statusRes = await fetch('/api/strava/backfill')
+      if (!statusRes.ok || cancelled) return
+      const status = await statusRes.json()
+
+      if (status.backfillComplete) { setBackfillDone(true); return }
+
+      setTotalActivities(status.totalActivities)
+      setKudosOffset(status.kudosOffset)
+      setJointOffset(status.jointOffset)
+
+      let kudosDone = !status.totalActivities || status.kudosOffset >= status.totalActivities
+      let jointDone = !status.totalActivities || status.jointOffset >= status.totalActivities
+
+      // Run kudos batches
+      while (!kudosDone && !cancelled) {
+        const res = await fetch('/api/strava/backfill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'kudos' }),
+        })
+        if (!res.ok || cancelled) break
+        const data = await res.json()
+        setKudosOffset(data.offset)
+        kudosDone = !data.hasMore
+        if (!kudosDone) await new Promise((r) => setTimeout(r, 1000))
+      }
+
+      // Run joint batches
+      while (!jointDone && !cancelled) {
+        const res = await fetch('/api/strava/backfill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'joint' }),
+        })
+        if (!res.ok || cancelled) break
+        const data = await res.json()
+        setJointOffset(data.offset)
+        jointDone = !data.hasMore
+        if (!jointDone) await new Promise((r) => setTimeout(r, 1000))
+      }
+
+      if (!cancelled) setBackfillDone(true)
+    }
+
+    runBackfill()
+    return () => { cancelled = true }
+  }, [step])
 
   async function saveThreshold() {
     setSaving(true)
@@ -87,6 +153,73 @@ export default function OnboardingClient() {
               >
                 Connect with Strava
               </a>
+            </div>
+          )}
+
+          {step === 'importing' && (
+            <div className="text-center">
+              <div className="text-4xl mb-4">📥</div>
+              <h2 className="text-xl font-semibold mb-2">Importing your Strava history</h2>
+              <p className="text-gray-500 text-sm mb-6">
+                We're syncing your kudos and joint activities since Jan 2025.
+                This takes a couple of minutes — hang tight!
+              </p>
+
+              {totalActivities > 0 && (
+                <div className="space-y-3 mb-6 text-left">
+                  <div>
+                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>Kudos</span>
+                      <span>{Math.min(kudosOffset, totalActivities)} / {totalActivities}</span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#185FA5] rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(100, (kudosOffset / totalActivities) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>Joint activities</span>
+                      <span>{Math.min(jointOffset, totalActivities)} / {totalActivities}</span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#185FA5] rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(100, (jointOffset / totalActivities) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!backfillDone && totalActivities === 0 && (
+                <div className="flex justify-center mb-6">
+                  <div className="w-6 h-6 border-2 border-[#185FA5] border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+
+              <button
+                onClick={() => setStep('threshold')}
+                className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  backfillDone
+                    ? 'bg-[#185FA5] text-white hover:bg-[#145088]'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}
+                disabled={!backfillDone}
+              >
+                {backfillDone ? 'Continue →' : 'Importing…'}
+              </button>
+
+              {!backfillDone && (
+                <button
+                  onClick={() => setStep('threshold')}
+                  className="mt-3 text-xs text-gray-400 hover:text-gray-600 underline"
+                >
+                  Skip — finish in the background
+                </button>
+              )}
             </div>
           )}
 

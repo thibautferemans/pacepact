@@ -7,11 +7,13 @@ import type { Competition, Team, InviteLink, SportMultiplier, Setting } from '@/
 
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false })
 
-type Tab = 'competitions' | 'teams' | 'users' | 'invites' | 'multipliers' | 'settings' | 'flags'
+type Tab = 'competitions' | 'teams' | 'users' | 'invites' | 'multipliers' | 'settings' | 'flags' | 'backfill'
 
 interface AdminUser {
   id: string; name: string; email: string; role: string
   stravaConnected: boolean; lastSynced: string | null; team: { id: string; name: string } | null
+  totalActivities: number; totalJoint: number; totalKudos: number
+  backfillComplete: boolean; backfillOffsetKudos: number; backfillOffsetJoint: number
 }
 
 export default function AdminClient({ currentUserId }: { currentUserId: string }) {
@@ -435,32 +437,48 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
     <div>
       <h2 className="font-semibold text-gray-800 mb-4">Users ({users.length})</h2>
       <div className="bg-white border border-gray-100 rounded-xl overflow-x-auto">
-        <table className="w-full text-sm min-w-[600px]">
+        <table className="w-full text-sm min-w-[900px]">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
             <tr>
               <th className="px-4 py-3 text-left">Name</th>
-              <th className="px-4 py-3 text-left">Email</th>
               <th className="px-4 py-3 text-left">Role</th>
-              <th className="px-4 py-3 text-left">Strava</th>
               <th className="px-4 py-3 text-left">Team</th>
               <th className="px-4 py-3 text-left">Last sync</th>
+              <th className="px-4 py-3 text-right">Activities</th>
+              <th className="px-4 py-3 text-right">Joint</th>
+              <th className="px-4 py-3 text-right">Kudos</th>
+              <th className="px-4 py-3 text-left">Backfill</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {users.map((u) => (
               <tr key={u.id} className={u.id === currentUserId ? 'bg-[#E6F1FB]/50' : ''}>
-                <td className="px-4 py-3 font-medium text-gray-900">{u.name}</td>
-                <td className="px-4 py-3 text-gray-500">{u.email}</td>
+                <td className="px-4 py-3 font-medium text-gray-900">
+                  {u.name}
+                  <span className="ml-1">{u.stravaConnected ? '🟢' : '🔴'}</span>
+                </td>
                 <td className="px-4 py-3">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${u.role === 'admin' ? 'bg-[#185FA5] text-white' : 'bg-gray-100 text-gray-600'}`}>
                     {u.role}
                   </span>
                 </td>
-                <td className="px-4 py-3">{u.stravaConnected ? '✅' : '❌'}</td>
                 <td className="px-4 py-3 text-gray-500 text-xs">{u.team?.name ?? '—'}</td>
                 <td className="px-4 py-3 text-gray-400 text-xs">
                   {u.lastSynced ? format(new Date(u.lastSynced), 'd MMM HH:mm') : '—'}
+                </td>
+                <td className="px-4 py-3 text-right text-gray-700 font-mono text-xs">{u.totalActivities}</td>
+                <td className="px-4 py-3 text-right text-gray-700 font-mono text-xs">{u.totalJoint}</td>
+                <td className="px-4 py-3 text-right text-gray-700 font-mono text-xs">{u.totalKudos}</td>
+                <td className="px-4 py-3 text-xs">
+                  {u.backfillComplete
+                    ? <span className="text-green-600">✓ Done</span>
+                    : u.stravaConnected
+                    ? <span className="text-amber-500">
+                        K:{u.backfillOffsetKudos} J:{u.backfillOffsetJoint}
+                      </span>
+                    : <span className="text-gray-300">—</span>
+                  }
                 </td>
                 <td className="px-4 py-3">
                   {u.id !== currentUserId && (
